@@ -1,0 +1,14 @@
+业务层主要用来完成业务逻辑处理，我们可以把所有的业务逻辑处理代码放在业务层。
+业务层会处理来自控制层的请求，并根据需要请求仓库层完成数据的 CURD 操作。业务层功能如下图所示：
+iam-apiserver 的业务层位于internal/apiserver/service目录下。下面是 iam-apiserver 业务层中，用来创建密钥的函数
+
+
+
+func (s *secretService) Create(ctx context.Context, secret *v1.Secret, opts metav1.CreateOptions) error {
+    if err := s.store.Secrets().Create(ctx, secret, opts); err != nil {
+        return errors.WithCode(code.ErrDatabase, err.Error())
+    }
+
+    return nil
+}
+可以看到，业务层最终请求仓库层的s.store的Create方法，将密钥信息保存在 MariaDB 数据库中。

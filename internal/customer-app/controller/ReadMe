@@ -1,0 +1,54 @@
+控制层接收 HTTP 请求，并进行参数解析、参数校验、逻辑分发处理、请求返回这些操作。
+控制层会将逻辑分发给业务层，业务层处理后返回，返回数据在控制层中被整合再加工，最终返回给请求方。
+控制层相当于实现了业务路由的功能。具体流程如下图所示：
+这里我有个建议，不要在控制层写复杂的代码，如果需要，请将这些代码分发到业务层或其他包中。iam-apiserver 的控制层位于internal/apiserver/controller目录下。
+下面是 iam-apiserver 控制层中创建密钥的代码：
+https://github.com/marmotedu/iam/tree/v1.0.3/internal/apiserver/controller
+
+
+func (s *SecretHandler) Create(c *gin.Context) {
+  log.L(c).Info("create secret function called.")
+
+  var r v1.Secret
+
+  if err := c.ShouldBindJSON(&r); err != nil {
+    core.WriteResponse(c, errors.WithCode(code.ErrBind, err.Error()), nil)
+
+    return
+  }
+
+  if errs := r.Validate(); len(errs) != 0 {
+    core.WriteResponse(c, errors.WithCode(code.ErrValidation, errs.ToAggregate().Error()), nil)
+
+    return
+  }
+
+  username := c.GetString(middleware.UsernameKey)
+
+  secrets, err := s.srv.Secrets().List(c, username, metav1.ListOptions{
+    Offset: pointer.ToInt64(0),
+    Limit:  pointer.ToInt64(-1),
+  })
+  if err != nil {
+    core.WriteResponse(c, errors.WithCode(code.ErrDatabase, err.Error()), nil)
+
+    return
+  }
+
+  if secrets.TotalCount >= maxSecretCount {
+    core.WriteResponse(c, errors.WithCode(code.ErrReachMaxCount, "secret count: %d", secrets.TotalCount), nil)
+
+    return
+  }
+
+  // must reassign username
+  r.Username = username
+
+  if err := s.srv.Secrets().Create(c, &r, metav1.CreateOptions{}); err != nil {
+    core.WriteResponse(c, err, nil)
+
+    return
+  }
+
+  core.WriteResponse(c, nil, r)
+}
