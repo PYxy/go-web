@@ -23,6 +23,9 @@ debug = true
 # 启动 mysql
 $ docker run --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD="123456" -d mysql:8.0.28
 
+#登录数据库 创建test 库
+> create database test 
+
 # 启动 web服务
 $ go run cmd/main.go -c 配置文件的绝对路径
 
