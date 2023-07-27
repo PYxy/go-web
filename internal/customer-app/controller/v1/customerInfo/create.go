@@ -12,6 +12,7 @@ import (
 func (i *InfoController) Create(c *gin.Context) {
 	var info *store.Customer
 
+	//time.Sleep(time.Second * 5) //用来测试 等待请求处理
 	if err := c.BindJSON(&info); err != nil {
 		c.JSON(http.StatusBadRequest, map[string]string{
 			"code":    "400",

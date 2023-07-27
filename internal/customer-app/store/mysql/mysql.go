@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/PYxy/go-web/internal/customer-app/store"
 	"github.com/PYxy/go-web/pkg/option"
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"sync"
@@ -15,21 +16,21 @@ var (
 	once         sync.Once
 )
 
-type mysqlstore struct {
+type mysqlStore struct {
 	db *gorm.DB
 }
 
-func (m *mysqlstore) CustomerInfoOption() store.CustomerInfoStore {
+func (m *mysqlStore) CustomerInfoOption() store.CustomerInfoStore {
 	//TODO implement me
 	return newCustomerInfo(m)
 }
 
-func (m *mysqlstore) CustomerGoodOption() store.CustomerGoodStore {
+func (m *mysqlStore) CustomerGoodOption() store.CustomerGoodStore {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *mysqlstore) Close() error {
+func (m *mysqlStore) Close() error {
 	db, err := m.db.DB()
 	if err != nil {
 		//找不到对象就证明不存在就不管
@@ -59,15 +60,17 @@ func GetMySQLFactoryOr(opts *option.MysqlOptions) (store.Factory, error) {
 		// uncomment the following line if you need auto migration the given models
 		// not suggested in production environment.
 		// migrateDatabase(dbIns)
-		mysqlFactory = &mysqlstore{dbIns}
-		err = migrateDatabase(dbIns)
-		fmt.Println("迁移异常:", err)
+		mysqlFactory = &mysqlStore{dbIns}
+		//数据迁移
+		if err = migrateDatabase(dbIns); err != nil {
+			logrus.Warn("数据迁移异常:", err)
+		}
+
 	})
 
 	if mysqlFactory == nil || err != nil {
 		return nil, fmt.Errorf("failed to get mysql store fatory, mysqlFactory: %+v, error: %w", mysqlFactory, err)
 	}
-	//按需操作 自动迁移
 
 	return mysqlFactory, nil
 }

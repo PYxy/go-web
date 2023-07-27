@@ -24,10 +24,10 @@ debug = true
 $ docker run --name mysql -p 3306:3306 -e MYSQL_ROOT_PASSWORD="123456" -d mysql:8.0.28
 
 #登录数据库 创建test 库
-> create database test 
+> create database test;
 
 # 启动 web服务
-$ go run cmd/main.go -c 配置文件的绝对路径
+$ go run go-web/cmd/main.go -c 配置文件的绝对路径
 
 # 命令行请求 或者使用 postman
 #{"status":0,"name":"小白","password":"123456","email":"asxxxxxxxxxx@163.com","phone":"xxxxxxxxxxxxx","totalPolicy":0,"hobbySlice":["rap","sing"],"hobby":""}

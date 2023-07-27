@@ -37,8 +37,8 @@ func NewLogger() {
 	//设置输出位置
 	logrus.SetOutput(os.Stdout)
 
-	//添加hook 区分错误信息
-	logrus.AddHook(&MyHookError{Write: []io.Writer{os.Stderr}})
+	////添加hook 区分错误信息
+	//logrus.AddHook(&MyHookError{Write: []io.Writer{os.Stderr}})
 
 	logrus.SetFormatter(&MyForConsole{EnableColor: true, EnableCaller: false})
 

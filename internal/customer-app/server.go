@@ -7,10 +7,10 @@ import (
 	"github.com/PYxy/go-web/internal/customer-app/pkg"
 	"github.com/PYxy/go-web/internal/customer-app/store"
 	"github.com/PYxy/go-web/internal/customer-app/store/mysql"
-	linuxSingal "github.com/PYxy/go-web/pkg"
+	linuxSignal "github.com/PYxy/go-web/pkg"
 	"github.com/PYxy/go-web/pkg/middle/reject_request"
 	"github.com/gin-gonic/gin"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"os/signal"
@@ -149,13 +149,13 @@ func (h *HttpApp) StartAndServer() {
 	}
 	// 从这里开始优雅退出监听系统信号，强制退出以及超时强制退出。
 	signalch := make(chan os.Signal, 2)
-	signal.Notify(signalch, linuxSingal.Signals...)
+	signal.Notify(signalch, linuxSignal.Signals...)
 	go func() {
 		if err := h.svc.ListenAndServe(); err != nil {
 			if err == http.ErrServerClosed {
-				log.Printf("服务器[%s]已关闭", h.Name)
+				logrus.Infof("服务器[%s]已关闭", h.Name)
 			} else {
-				log.Printf("服务器[%s]异常退出,异常信息:%v", h.Name, err)
+				logrus.Warnf("服务器[%s]异常退出,异常信息:%v", h.Name, err)
 				close(signalch)
 			}
 		}
@@ -173,7 +173,7 @@ func (h *HttpApp) RUN() {
 	//TODO 1.变量初始化 例如 文件读取, mysql redis  etcd 的连接信息,   注意连接的close
 	configOption, err := config.ParseAppInI(configPath)
 	if err != nil {
-		fmt.Println(err)
+		logrus.WithField(configPath, "配置文件 解析失败").Error(err)
 		panic("读取配置文件失败")
 	}
 	fmt.Println("configOption", configOption.MysqlOption)
@@ -184,7 +184,7 @@ func (h *HttpApp) RUN() {
 		panic("连接mysql 异常")
 	}
 	defer func() {
-		fmt.Println("mysql 连接关闭")
+		logrus.Info("mysql连接关闭")
 		_ = mysqlFactory.Close()
 	}()
 	store.SetClient("mysql", mysqlFactory)
@@ -221,7 +221,8 @@ func (h *HttpApp) shutdown() {
 
 	//TODO 5.正常关闭服务
 	err := h.stop()
-	fmt.Printf("服务[%s],关闭是否出现异常:[%v] \n", h.Name, err)
+	logrus.Infof("服务[%s],关闭是否出现异常: %v", h.Name, err)
+
 	//TODO 6 做一些收尾工作
 	var wg sync.WaitGroup
 	for _, cbFun := range h.cbs {

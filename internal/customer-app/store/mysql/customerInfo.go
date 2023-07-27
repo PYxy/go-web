@@ -44,6 +44,6 @@ func (c *customerInfo) Get(ctx context.Context, username string) ([]store.Custom
 	return resultCustomer, c.db.WithContext(ctx).Where("name = ?", username).Find(&resultCustomer).Error
 }
 
-func newCustomerInfo(ds *mysqlstore) *customerInfo {
+func newCustomerInfo(ds *mysqlStore) *customerInfo {
 	return &customerInfo{db: ds.db}
 }
