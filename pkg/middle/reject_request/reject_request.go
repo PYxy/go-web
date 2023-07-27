@@ -59,6 +59,7 @@ func (r *RejectRequest) Build() gin.HandlerFunc {
 				"errmsg": "服务关闭中,拒绝请求",
 			})
 			context.Abort()
+
 		}
 		//增加一个
 		r.count.Add(1)

@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/PYxy/go-web/internal/customer-app/config"
+	"github.com/PYxy/go-web/internal/customer-app/pkg"
 	"github.com/PYxy/go-web/internal/customer-app/store"
 	"github.com/PYxy/go-web/internal/customer-app/store/mysql"
 	linuxSingal "github.com/PYxy/go-web/pkg"
 	"github.com/PYxy/go-web/pkg/middle/reject_request"
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/pflag"
 	"log"
 	"net/http"
 	"os"
@@ -18,24 +18,9 @@ import (
 	"time"
 )
 
-var (
-	configPath = pflag.StringP("config_path", "c", "/etc/config.ini", "Configuration file.")
-	//help       = pflag.BoolP("help", "h", false, "Show this help message.")
-)
-
-// 读取命令行参数  这个可以写死
-func init() {
-	pflag.Parse()
-	//if *help {
-	//	pflag.Usage()
-	//	return
-	//}
-}
-
 // App 定义服务接口
 type App interface {
 	StartAndServer()
-	LoadConfig() App
 	shutdown()
 	RUN()
 }
@@ -51,7 +36,7 @@ func NewApp(name, addr string, opts ...AppOption) App {
 		waitTime:        time.Second * 10,
 		cbTimeout:       time.Second * 3,
 		svcStopTimeOut:  time.Second * 3,
-		reject:          reject_request.NewRejecter(time.Millisecond * 20),
+		reject:          reject_request.NewRejecter(time.Millisecond * 10),
 	}).WithOption(opts...)
 
 }
@@ -64,31 +49,19 @@ type HttpApp struct {
 	//===下面都是service级别的参数===
 	// 优雅退出整个超时时间，默认30秒
 	shutdownTimeout time.Duration
-
 	// 优雅退出时候等待处理已有请求时间，默认10秒钟
 	waitTime time.Duration
 	// 自定义回调超时时间，默认三秒钟
 	cbTimeout time.Duration
 	//服务关闭最长时间 Stop
 	svcStopTimeOut time.Duration
-
-	reject *reject_request.RejectRequest
-
+	reject         *reject_request.RejectRequest
 	//回调函数 按需
 	cbs []func(ctx context.Context)
 	//定时任务
 	cronSlice  []func(ctx context.Context)
 	ctx        context.Context
 	cancelFunc context.CancelFunc
-}
-
-// LoadConfig  用来加载项目运行的所有配置文件
-func (h *HttpApp) LoadConfig() App {
-	//TODO implement me
-
-	//options, err := ReadMysqlInI("")
-
-	return h
 }
 
 func (h *HttpApp) WithOption(opts ...AppOption) *HttpApp {
@@ -124,11 +97,17 @@ func WithcbTimeout(cbTimeout time.Duration) AppOption {
 	}
 }
 
-//服务关闭最长时间 Sto
-
+// WithsvcStopTimeOut 服务关闭最长时间 StopTimeOut
 func WithsvcStopTimeOut(svcStopTimeOut time.Duration) AppOption {
 	return func(app *HttpApp) {
 		app.svcStopTimeOut = svcStopTimeOut
+	}
+}
+
+// WithTLS 设置TLS
+func WithTLS() AppOption {
+	return func(app *HttpApp) {
+
 	}
 }
 
@@ -146,7 +125,8 @@ func (h *HttpApp) CronRun() {
 func (h *HttpApp) StartAndServer() {
 	//TODO implement me
 	r := gin.Default()
-	//TODO 注册禁止请求中间件  下面需要关注请求数 貌似只能这么写,请指教
+	//TODO 1.注册禁止请求中间件  下面需要关注请求数 貌似只能这么写,请指教
+	h.reject = reject_request.NewRejecter(time.Millisecond * 10)
 
 	r.Use(h.reject.Build()) //TODO 全局中间件
 
@@ -168,32 +148,30 @@ func (h *HttpApp) StartAndServer() {
 		ConnContext:       nil,
 	}
 	// 从这里开始优雅退出监听系统信号，强制退出以及超时强制退出。
-
-	chServer := make(chan struct{})
+	signalch := make(chan os.Signal, 2)
+	signal.Notify(signalch, linuxSingal.Signals...)
 	go func() {
 		if err := h.svc.ListenAndServe(); err != nil {
 			if err == http.ErrServerClosed {
 				log.Printf("服务器[%s]已关闭", h.Name)
 			} else {
 				log.Printf("服务器[%s]异常退出,异常信息:%v", h.Name, err)
-				close(chServer)
+				close(signalch)
 			}
 		}
 	}()
-	signalch := make(chan os.Signal, 2)
-	signal.Notify(signalch, linuxSingal.Signals...)
-	select {
-	case <-signalch:
-	case <-chServer:
-	}
+
+	<-signalch
+
 	h.shutdown()
 }
 
 func (h *HttpApp) RUN() {
-
+	//TODO 0.获取必要参数
+	configPath := pkg.ParseCommand()
 	//项目使用的变量初始化 例如 文件读取, mysql redis  etcd 的连接信息
 	//TODO 1.变量初始化 例如 文件读取, mysql redis  etcd 的连接信息,   注意连接的close
-	configOption, err := config.ParseAppInI(*configPath)
+	configOption, err := config.ParseAppInI(configPath)
 	if err != nil {
 		fmt.Println(err)
 		panic("读取配置文件失败")
@@ -227,7 +205,6 @@ func (h *HttpApp) shutdown() {
 	//panic("implement me")
 	//TODO 1.拒绝请求
 	h.reject.Store(false)
-
 	//TODO 2.停止定时任务
 	if h.cancelFunc != nil {
 		h.cancelFunc()
@@ -239,6 +216,7 @@ func (h *HttpApp) shutdown() {
 	//time.Sleep(app.waitTime)
 	ctx, cancel := context.WithTimeout(context.Background(), h.waitTime)
 	defer cancel()
+
 	h.reject.Wait(ctx)
 
 	//TODO 5.正常关闭服务

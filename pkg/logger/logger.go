@@ -6,8 +6,13 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io"
+	"os"
 	"path"
 )
+
+func init() {
+	NewLogger()
+}
 
 const (
 	Black = iota
@@ -23,6 +28,22 @@ const (
 type Logger struct {
 }
 
+func NewLogger() {
+	logrus.SetLevel(logrus.DebugLevel)
+
+	//是否打印输出信息
+	logrus.SetReportCaller(false)
+
+	//设置输出位置
+	logrus.SetOutput(os.Stdout)
+
+	//添加hook 区分错误信息
+	logrus.AddHook(&MyHookError{Write: []io.Writer{os.Stderr}})
+
+	logrus.SetFormatter(&MyForConsole{EnableColor: true, EnableCaller: false})
+
+}
+
 func Init(option *Options) {
 	//设置日志级别
 	logrus.SetLevel(option.Level)
@@ -34,8 +55,8 @@ func Init(option *Options) {
 	logrus.SetOutput(io.MultiWriter(option.OutputPaths...))
 
 	//添加hook 区分错误信息
-	logrus.AddHook(&MyHook{Write: option.ErrorOutputPaths})
-
+	logrus.AddHook(&MyHookError{Write: option.ErrorOutputPaths})
+	//logrus.AddHook(&MyHookNormal{Write: option.OutputPaths})
 	if option.Format == "json" {
 		logrus.SetFormatter(&MyForJson{EnableColor: option.EnableColor, EnableCaller: option.EnableCaller})
 	} else {
@@ -85,9 +106,9 @@ func (m *MyForJson) Format(entry *logrus.Entry) ([]byte, error) {
 	//自定义文件路径
 	resultBytes, _ := json.Marshal(entry.Data)
 	if m.EnableColor {
-		fmt.Fprintf(b, "\033[3%dm%v\033[0m \n", color, string(resultBytes))
+		fmt.Fprintf(b, "\033[3%dm[%v]\033[0m %v\n", color, entry.Level, string(resultBytes))
 	} else {
-		fmt.Fprintf(b, "%s \n", string(resultBytes))
+		fmt.Fprintf(b, "[%v] %s \n", entry.Level, string(resultBytes))
 	}
 
 	return b.Bytes(), nil
@@ -159,22 +180,40 @@ func (m *MyForConsole) Format(entry *logrus.Entry) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-type MyHook struct {
+type MyHookError struct {
 	Write []io.Writer
 }
 
 // Levels  这里设置error 错误级别的日志指定输出到ErrorOutputPaths 中
-func (m MyHook) Levels() []logrus.Level {
-	return []logrus.Level{logrus.ErrorLevel}
+func (m MyHookError) Levels() []logrus.Level {
+	return []logrus.Level{logrus.ErrorLevel, logrus.TraceLevel, logrus.FatalLevel}
 }
 
-func (m MyHook) Fire(entry *logrus.Entry) error {
+func (m MyHookError) Fire(entry *logrus.Entry) error {
 	//TODO implement me
 	//bytes, _ := m.MyForConsole.Format(entry)
 	//m.Write.Write(bytes)
 	line, _ := entry.String()
 	for _, w := range m.Write {
-		w.Write([]byte(line))
+		_, _ = w.Write([]byte(line))
+	}
+	return nil
+}
+
+// MyHookNormal 如果启用这个 Hook  stdout  也会多写一次到文件中
+type MyHookNormal struct {
+	Write []io.Writer
+}
+
+func (m MyHookNormal) Levels() []logrus.Level {
+	return []logrus.Level{logrus.DebugLevel, logrus.InfoLevel, logrus.WarnLevel}
+}
+
+func (m MyHookNormal) Fire(entry *logrus.Entry) error {
+	//TODO implement me
+	line, _ := entry.String()
+	for _, w := range m.Write {
+		_, _ = w.Write([]byte(line))
 	}
 	return nil
 }

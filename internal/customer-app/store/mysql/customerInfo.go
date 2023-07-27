@@ -18,6 +18,7 @@ var _ store.CustomerInfoStore = (*customerInfo)(nil)
 func (c *customerInfo) Create(ctx context.Context, customer *store.Customer) error {
 	//TODO implement me
 	fmt.Println("插入数据..")
+
 	return c.db.WithContext(ctx).Create(customer).Error
 }
 
